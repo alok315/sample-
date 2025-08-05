@@ -49,8 +49,8 @@ class Pipeline:
         self.valves = self.Valves(
             **{
                 "pipelines": ["*"],  # Connect to all pipelines
-                # "libretranslate_url": os.getenv(
-                #     "LIBRETRANSLATE_API_BASE_URL", "http://localhost:5000"
+                "libretranslate_url": os.getenv(
+                    "LIBRETRANSLATE_API_BASE_URL", "http://localhost:5000"
                 ),
             }
         )
