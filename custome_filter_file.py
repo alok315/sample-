@@ -1,100 +1,142 @@
-import os
+from typing import List, Optional
+from schemas import OpenAIChatMessage
+from pydantic import BaseModel
 import requests
-from typing import Literal, List, Optional
-from datetime import datetime
+import os
+
+from utils.pipelines.main import get_last_user_message, get_last_assistant_message
 
 
-from blueprints.function_calling_blueprint import Pipeline as FunctionCallingBlueprint
+class Pipeline:
 
+    class Valves(BaseModel):
+        # List target pipeline ids (models) that this filter will be connected to.
+        # If you want to connect this filter to all pipelines, you can set pipelines to ["*"]
+        # e.g. ["llama3:latest", "gpt-3.5-turbo"]
+        pipelines: List[str] = []
 
-class Pipeline(FunctionCallingBlueprint):
-    class Valves(FunctionCallingBlueprint.Valves):
-        # Add your custom parameters here
-        OPENWEATHERMAP_API_KEY: str = ""
-        pass
+        # Assign a priority level to the filter pipeline.
+        # The priority level determines the order in which the filter pipelines are executed.
+        # The lower the number, the higher the priority.
+        priority: int = 0
 
-    class Tools:
-        def __init__(self, pipeline) -> None:
-            self.pipeline = pipeline
+        # Valves
+        # libretranslate_url: str
 
-        def get_current_time(
-            self,
-        ) -> str:
-            """
-            Get the current time.
+        # Source and target languages
+        # User message will be translated from source_user to target_user
+        source_user: Optional[str] = "auto"
+        target_user: Optional[str] = "en"
 
-            :return: The current time.
-            """
-
-            now = datetime.now()
-            current_time = now.strftime("%H:%M:%S")
-            return f"Current Time = {current_time}"
-
-        def get_current_weather(
-            self,
-            location: str,
-            unit: Literal["metric", "fahrenheit"] = "fahrenheit",
-        ) -> str:
-            """
-            Get the current weather for a location. If the location is not found, return an empty string.
-
-            :param location: The location to get the weather for.
-            :param unit: The unit to get the weather in. Default is fahrenheit.
-            :return: The current weather for the location.
-            """
-
-            # https://openweathermap.org/api
-
-            if self.pipeline.valves.OPENWEATHERMAP_API_KEY == "":
-                return "OpenWeatherMap API Key not set, ask the user to set it up."
-            else:
-                units = "imperial" if unit == "fahrenheit" else "metric"
-                params = {
-                    "q": location,
-                    "appid": self.pipeline.valves.OPENWEATHERMAP_API_KEY,
-                    "units": units,
-                }
-
-                response = requests.get(
-                    "http://api.openweathermap.org/data/2.5/weather", params=params
-                )
-                response.raise_for_status()  # Raises an HTTPError for bad responses
-                data = response.json()
-
-                weather_description = data["weather"][0]["description"]
-                temperature = data["main"]["temp"]
-
-                return f"{location}: {weather_description.capitalize()}, {temperature}°{unit.capitalize()[0]}"
-
-        def calculator(self, equation: str) -> str:
-            """
-            Calculate the result of an equation.
-
-            :param equation: The equation to calculate.
-            """
-
-            # Avoid using eval in production code
-            # https://nedbatchelder.com/blog/201206/eval_really_is_dangerous.html
-            try:
-                result = eval(equation)
-                return f"{equation} = {result}"
-            except Exception as e:
-                print(e)
-                return "Invalid equation"
+        # Assistant languages
+        # Assistant message will be translated from source_assistant to target_assistant
+        source_assistant: Optional[str] = "en"
+        target_assistant: Optional[str] = "es"
 
     def __init__(self):
-        super().__init__()
+        # Pipeline filters are only compatible with Open WebUI
+        # You can think of filter pipeline as a middleware that can be used to edit the form data before it is sent to the OpenAI API.
+        self.type = "filter"
+
         # Optionally, you can set the id and name of the pipeline.
         # Best practice is to not specify the id so that it can be automatically inferred from the filename, so that users can install multiple versions of the same pipeline.
         # The identifier must be unique across all pipelines.
         # The identifier must be an alphanumeric string that can include underscores or hyphens. It cannot contain spaces, special characters, slashes, or backslashes.
-        # self.id = "my_tools_pipeline"
-        self.name = "My Tools Pipeline"
+        # self.id = "libretranslate_filter_pipeline"
+        self.name = "LibreTranslate Filter"
+
+        # Initialize
         self.valves = self.Valves(
             **{
-                **self.valves.model_dump(),
                 "pipelines": ["*"],  # Connect to all pipelines
-                "OPENWEATHERMAP_API_KEY": os.getenv("OPENWEATHERMAP_API_KEY", ""),
-            },
+                # "libretranslate_url": os.getenv(
+                #     "LIBRETRANSLATE_API_BASE_URL", "http://localhost:5000"
+                ),
+            }
         )
-        self.tools = self.Tools(self)
+
+        pass
+
+    async def on_startup(self):
+        # This function is called when the server is started.
+        print(f"on_startup:{__name__}")
+        pass
+
+    async def on_shutdown(self):
+        # This function is called when the server is stopped.
+        print(f"on_shutdown:{__name__}")
+        pass
+
+    async def on_valves_updated(self):
+        # This function is called when the valves are updated.
+        pass
+
+    def translate(self, text: str, source: str, target: str) -> str:
+        payload = {
+            "q": text,
+            "source": source,
+            "target": target,
+        }
+
+        try:
+            # r = requests.post(
+            #     f"{self.valves.libretranslate_url}/translate", json=payload
+            # )
+            # r.raise_for_status()
+
+            # data = r.json()
+            
+            return "hello i am alok"
+        except Exception as e:
+            print(f"Error translating text: {e}")
+            return text
+
+    async def inlet(self, body: dict, user: Optional[dict] = None) -> dict:
+        print(f"inlet:{__name__}")
+
+        messages = body["messages"]
+        user_message = get_last_user_message(messages)
+
+        print(f"User message: {user_message}")
+
+        # Translate user message
+        translated_user_message = self.translate(
+            user_message,
+            self.valves.source_user,
+            self.valves.target_user,
+        )
+
+        print(f"Translated user message: {translated_user_message}")
+
+        for message in reversed(messages):
+            if message["role"] == "user":
+                message["content"] = translated_user_message
+                break
+
+        body = {**body, "messages": messages}
+        return body
+
+    async def outlet(self, body: dict, user: Optional[dict] = None) -> dict:
+        print(f"outlet:{__name__}")
+
+        messages = body["messages"]
+        assistant_message = get_last_assistant_message(messages)
+
+        print(f"Assistant message: {assistant_message}")
+
+        # Translate assistant message
+        translated_assistant_message = self.translate(
+            assistant_message,
+            self.valves.source_assistant,
+            self.valves.target_assistant,
+        )
+
+        print(f"Translated assistant message: {translated_assistant_message}")
+
+        for message in reversed(messages):
+            if message["role"] == "assistant":
+                message["content"] = translated_assistant_message
+                break
+
+        body = {**body, "messages": messages}
+        return body
