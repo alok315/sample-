@@ -85,8 +85,7 @@ class Pipeline:
             r.raise_for_status()
 
             data = r.json()
-            
-            return "hello i am alok"
+            return data["translatedText"]
         except Exception as e:
             print(f"Error translating text: {e}")
             return text
