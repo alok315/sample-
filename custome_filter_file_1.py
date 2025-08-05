@@ -86,7 +86,7 @@ class Pipeline:
 
             data = r.json()
             
-            # return "hello i am alok"
+            return "hello i am alok"
         except Exception as e:
             print(f"Error translating text: {e}")
             return text
