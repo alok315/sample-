@@ -79,13 +79,13 @@ class Pipeline:
         }
 
         try:
-            r = requests.post(
-                f"{self.valves.libretranslate_url}/translate", json=payload
-            )
-            r.raise_for_status()
+            # r = requests.post(
+            #     f"{self.valves.libretranslate_url}/translate", json=payload
+            # )
+            # r.raise_for_status()
 
-            data = r.json()
-            return data["translatedText"]
+            # data = r.json()
+            return "hello I am Alok"
         except Exception as e:
             print(f"Error translating text: {e}")
             return text
