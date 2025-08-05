@@ -21,7 +21,7 @@ class Pipeline:
         priority: int = 0
 
         # Valves
-        # libretranslate_url: str
+        libretranslate_url: str
 
         # Source and target languages
         # User message will be translated from source_user to target_user
